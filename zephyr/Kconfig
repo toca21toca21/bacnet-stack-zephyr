@@ -93,6 +93,51 @@ config BACDL_BSC
     help
       Enable BACnet Secure Connect datalink
 
+config BACNETSTACK_BSC_HUB_MAX_CONNECTIONS
+    int "Maximum concurrent BACnet/SC hub-function connections"
+    default 1
+    range 1 32
+    depends on BACDL_BSC
+    help
+      Maximum number of simultaneous inbound node connections the
+      BACnet/SC hub function (zephyr/subsys/bacnet_datalink/websocket-srv.c)
+      will accept and service concurrently. Irrelevant to devices that
+      only use the client/hub-connector role (bws_cli_*) and never enable
+      SC_Hub_Function_Enable.
+
+      This is a board/deployment decision, not a fixed platform limit:
+      Zephyr's board abstraction means the same application can run on
+      anything from a small Cortex-M with a few tens of KB free to a much
+      larger MCU or SoC - size this to match what the board you're
+      actually deploying on can afford, not the smallest board the
+      firmware happens to also build for.
+
+      Each concurrent connection costs, approximately (measured on an
+      EFM32PG26/Cortex-M33, ECDSA P-256 certs, ECDHE-ECDSA-AES-GCM/CCM
+      ciphersuites - `mbedtls heap max_reset` and `kernel thread stacks`
+      after running 2 real connections for a while; varies with cipher
+      suite, certificate chain size, and board - re-measure on your own
+      combination rather than assuming these hold):
+        - ~6-7KB of mbedTLS heap per connection (2 connections measured
+          at 13.4KB peak / 8.5KB steady-state total, not 2x a
+          single-connection figure - there's a fixed component that
+          doesn't scale per-connection, so more connections should cost
+          somewhat less than naive linear extrapolation, not more).
+        - One dedicated Zephyr thread stack (BSC_SRV_THREAD_STACK_SIZE
+          in websocket-srv.c, currently 8KB reserved per connection plus
+          one more for the listener) - but only ~1950 bytes (24%) of
+          each connection thread's 8KB was actually used at high-water
+          mark, and ~2825 bytes (34%) for the listener. That stack size
+          was inherited from websocket-cli.c's own crash-driven sizing
+          precedent, not measured for this file specifically - there is
+          real margin in it, though on a codebase with a stack-overflow
+          crash history elsewhere, keeping that margin is probably worth
+          more than reclaiming it.
+      Bumping this value also requires increasing, roughly in proportion:
+      CONFIG_NET_SOCKETS_TLS_MAX_CONTEXTS, CONFIG_WEBSOCKET_MAX_CONTEXTS,
+      CONFIG_NET_MAX_CONTEXTS, CONFIG_ZVFS_OPEN_MAX, and
+      CONFIG_MBEDTLS_HEAP_SIZE - these are not derived automatically.
+
 config BACDL_NONE
     bool "BACnet without datalink"
     help

@@ -497,6 +497,8 @@ set(BACNETSTACK_BASIC_SRCS
     $<$<BOOL:${CONFIG_BACNET_BASIC_OBJECT_MULTISTATE_VALUE}>:${BACNETSTACK_SRC}/bacnet/basic/object/msv.c>
     $<$<BOOL:${CONFIG_BACNET_BASIC_OBJECT_NOTIFICATION_CLASS}>:${BACNETSTACK_SRC}/bacnet/basic/object/nc.c>
     $<$<BOOL:${CONFIG_BACNET_BASIC_OBJECT_NETWORK_PORT}>:${BACNETSTACK_SRC}/bacnet/basic/object/netport.c>
+    $<$<BOOL:${CONFIG_BACDL_BSC}>:${BACNETSTACK_SRC}/bacnet/basic/object/sc_netport.c>
+    $<$<BOOL:${CONFIG_BACDL_BSC}>:${BACNETSTACK_SRC}/bacnet/basic/object/sc_netport.h>
     $<$<BOOL:${CONFIG_BACNET_BASIC_OBJECTS}>:${BACNETSTACK_SRC}/bacnet/basic/object/objects.c>
     $<$<BOOL:${CONFIG_BACNET_BASIC_OBJECT_OCTET_STRING_VALUE}>:${BACNETSTACK_SRC}/bacnet/basic/object/osv.c>
     $<$<BOOL:${CONFIG_BACNET_BASIC_OBJECT_POSITIVE_INTEGER_VALUE}>:${BACNETSTACK_SRC}/bacnet/basic/object/piv.c>
@@ -598,6 +600,41 @@ zephyr_compile_definitions(
   $<$<BOOL:${CONFIG_BACDL_NONE}>:BACDL_NONE>
   $<$<BOOL:${CONFIG_BACDL_ALL}>:BACAPP_ALL>
   $<$<BOOL:${CONFIG_BACDL_BSC}>:BACDL_BSC>
+  # BSC_CONF_CLIENT_CONNECTIONS_NUM (bsc-conf.h) defaults to
+  # BSC_CONF_HUB_CONNECTOR_CONNECTIONS_NUM(2) + BSC_CONF_NODE_SWITCH_CONNECTIONS_NUM(10)
+  # * BSC_CONF_NODE_SWITCHES_NUM(1) = 12, sized for a device that also
+  # accepts/initiates direct connections. This device is a hub-connector-only
+  # client (no direct connections), so zero out the node-switch reservation -
+  # 12 connections' worth of per-connection buffers/thread stacks in
+  # websocket-cli.c (Zephyr port) was found to exhaust RAM at runtime
+  # (observed as the ENC28J60 driver's "Could not allocate rx buffer").
+  $<$<BOOL:${CONFIG_BACDL_BSC}>:BSC_CONF_NODE_SWITCHES_NUM=0>
+  # DEBUG_ENABLED unlocks debug_printf()'s body (used by the per-file
+  # DEBUG_PRINTF macros below) *and*, together with PRINT_ENABLED, gates
+  # debug_log_fprintf()'s body (the severity-filtered ERROR/WARNING/...
+  # logs sprinkled through bsc-util.c/bsc-datalink.c, controlled at
+  # runtime by debug_log_severity_set() - defaults to ERROR-and-above).
+  # debug_log_fprintf() only needs PRINT_ENABLED||DEBUG_ENABLED, so
+  # DEBUG_ENABLED=1 alone keeps it working with PRINT_ENABLED off.
+  # PRINT_ENABLED *also*, separately, unconditionally (no severity
+  # filtering at all) gates debug_print() - the plain message-only
+  # function h_rp.c and other h_*.c service handlers use for routine
+  # "Sending Ack!"/"Sending Reject!" notices on every request. Left off
+  # now that BSC bring-up is done - flip to 1 if that per-request chatter
+  # is useful again.
+  $<$<BOOL:${CONFIG_BACDL_BSC}>:DEBUG_ENABLED=1>
+  $<$<BOOL:${CONFIG_BACDL_BSC}>:PRINT_ENABLED=0>
+  # Each DEBUG_BSC_* toggle below enables an UNCONDITIONAL (not
+  # severity-filtered) per-function entry/exit trace in that specific
+  # bsc-*.c file - needed for initial BSC bring-up but pure noise now that
+  # it's working end-to-end, so left at 0/disabled. Flip whichever file's
+  # toggle back to 1 if debugging BSC internals again.
+  $<$<BOOL:${CONFIG_BACDL_BSC}>:DEBUG_BSC_DATALINK=0>
+  $<$<BOOL:${CONFIG_BACDL_BSC}>:DEBUG_BSC_NODE=0>
+  $<$<BOOL:${CONFIG_BACDL_BSC}>:DEBUG_BSC_HUB_CONNECTOR=0>
+  $<$<BOOL:${CONFIG_BACDL_BSC}>:DEBUG_BSC_HUB_FUNCTION=0>
+  $<$<BOOL:${CONFIG_BACDL_BSC}>:DEBUG_BSC_NODE_SWITCH=0>
+  $<$<BOOL:${CONFIG_BACDL_BSC}>:DEBUG_BSC_SOCKET=0>
   $<$<BOOL:${CONFIG_BACDL_BIP}>:BACDL_BIP>
   $<$<BOOL:${CONFIG_BACDL_BIP_PORT}>:BACDL_BIP_PORT=${CONFIG_BACDL_BIP_PORT}>
   $<$<BOOL:${CONFIG_MAX_BBMD_ENTRIES}>:MAX_BBMD_ENTRIES=${CONFIG_MAX_BBMD_ENTRIES}>
@@ -622,7 +659,7 @@ zephyr_compile_definitions(
   MAX_CHARACTER_STRING_BYTES=${CONFIG_BACNET_MAX_CHARACTER_STRING_BYTES}
   MAX_OCTET_STRING_BYTES=${CONFIG_BACNET_MAX_OCTET_STRING_BYTES}
   BACNET_DAILY_SCHEDULE_TIME_VALUES_SIZE=${CONFIG_BACNET_DAILY_SCHEDULE_TIME_VALUES_SIZE}
-  $<$<BOOL:${CONFIG_BACNET_BASIC_COV_SUBSCRIPTIONS_SIZE}>:MAX_COV_SUBCRIPTIONS=${CONFIG_BACNET_BASIC_COV_SUBSCRIPTIONS_SIZE}>
+  $<$<BOOL:${CONFIG_BACNET_BASIC_COV_SUBSCRIPTIONS_SIZE}>:MAX_COV_SUBSCRIPTIONS=${CONFIG_BACNET_BASIC_COV_SUBSCRIPTIONS_SIZE}>
   $<$<BOOL:${CONFIG_BACNET_BASIC_COV_ADDRESSES_SIZE}>:MAX_COV_ADDRESSES=${CONFIG_BACNET_BASIC_COV_ADDRESSES_SIZE}>
   # BACnet data types supported for WriteProperty: all = minimal + extra
   $<$<BOOL:${CONFIG_BACAPP_ALL}>:BACAPP_ALL>
