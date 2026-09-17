@@ -947,6 +947,12 @@ config BACNET_BASIC_OBJECT_AUDIT_LOG
     help
         Use the BACnet basic audit log object
 
+config BACNET_BASIC_OBJECT_PROGRAM
+    bool "Use the BACnet basic program object"
+    default false
+    help
+        Use the BACnet basic program object
+
 config BACNET_BASIC_DEVICE_OBJECT_VERSION
     string "BACnet Device default Object Version string"
     default "1.0.0"
